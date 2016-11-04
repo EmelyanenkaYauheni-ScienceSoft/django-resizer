@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Image Resizing Example{% endblock %}
+{% block header_text %}Image Resizing Example{% endblock %}
+
+{% block content %}
+    <div id="values">
+        {% for image in images %}
+            <p data-value-id='{{ image.pk }}'>
+                <span class="id">{{ image.pk }}</span>
+                <output class="created_at">{{ image.created_at|date:"D d M Y H:i:s" }}</output>
+                <output class="resized_at">{{ image.resized_at|date:"D d M Y H:i:s" }}</output>
+            </p>
+        {% empty %}
+            <p class="empty">No images yet.</p>
+        {% endfor %}
+    </div>
+{% endblock %}
+
+{% block extra_body %}
+    <script>
+        $(function () {
+            var ws_scheme = window.location.protocol == "https:" ? "wss" : "ws";
+            var ws_path = ws_scheme + '://' + window.location.host + window.location.pathname + "stream/";
+            console.log("Connecting to " + ws_path);
+            var socket = new ReconnectingWebSocket(ws_path);
+
+            socket.onmessage = function(message) {
+                let data = JSON.parse(message.data);
+                console.log("Got message:", data, message.data);
+                if (data.payload.action == 'create') {
+                    $values = $("#values");
+                    let pk = data.payload.pk;
+                    let created_at = data.payload.data.created_at;
+                    let resized_at = data.payload.data.resized_at;
+                    let p = $("<p>");
+                    p.append($("<span class='id'>").text(pk));
+                    p.append($("<output class='created_at'>").text(moment(created_at).format("ddd DD MMM YYYY HH:mm:ss")));
+                    p.append($("<output class='resized_at'>").text("Wait..."));
+                    p.attr("data-value-id", pk);
+
+                    $values.append(p);
+                } else if (data.payload.action == 'update') {
+                    $p = $("p[data-value-id=" + data.payload.pk + "]");
+                    $p.find(".resized_at").text(moment(data.payload.data.resized_at).format("ddd DD MMM YYYY HH:mm:ss"));
+                }
+            };
+
+            socket.onopen = function() {
+                console.log("Connected to notification socket");
+            }
+            socket.onclose = function() {
+                console.log("Disconnected to notification socket");
+            }
+        });
+    </script>
+{% endblock %}
